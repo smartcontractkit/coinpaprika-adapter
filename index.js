@@ -1,20 +1,56 @@
-const request = require('request')
-const _ = require('lodash')
+const rp = require('request-promise')
+const retries = process.env.RETRIES || 3
+const delay = process.env.RETRY_DELAY || 1000
+
+const requestRetry = (options, retries) => {
+  return new Promise((resolve, reject) => {
+    const retry = (options, n) => {
+      return rp(options)
+        .then(response => {
+          if (response.body.error) {
+            if (n === 1) {
+              reject(response)
+            } else {
+              setTimeout(() => {
+                retries--
+                retry(options, retries)
+              }, delay)
+            }
+          } else {
+            return resolve(response)
+          }
+        })
+        .catch(error => {
+          if (n === 1) {
+            reject(error)
+          } else {
+            setTimeout(() => {
+              retries--
+              retry(options, retries)
+            }, delay)
+          }
+        })
+    }
+    return retry(options, retries)
+  })
+}
+
 
 const convertFromTicker = (ticker, callback) => {
-  request({
+  requestRetry({
     url: 'https://api.coinpaprika.com/v1/coins',
-    json: true
-  }, (error, response, body) => {
-    if (error || response.statusCode >= 400) {
-      return callback('')
-    } else {
-      let coin = body.find(x => x.symbol.toLowerCase() === ticker.toLowerCase())
+    json: true,
+    resolveWithFullResponse: true
+  }, retries)
+    .then(response => {
+      let coin = response.body.find(x => x.symbol.toLowerCase() === ticker.toLowerCase())
       if (typeof coin === 'undefined')
         return callback('undefined')
       return callback(coin.id.toLowerCase())
-    }
-  })
+    })
+    .catch(error => {
+      return callback('')
+    })
 }
 
 const createRequest = (input, callback) => {
@@ -29,28 +65,28 @@ const createRequest = (input, callback) => {
     const options = {
       url: url,
       qs: queryObj,
-      json: true
+      json: true,
+      resolveWithFullResponse: true
     }
-    request(options, (error, response, body) => {
-      if (error || response.statusCode >= 400 || body.error) {
+    requestRetry(options, retries)
+      .then(response => {
+        const result = response.body.quotes[market.toUpperCase()].price
+        response.body.result = result
         callback(response.statusCode, {
+          jobRunID: input.id,
+          data: response.body,
+          result,
+          statusCode: response.statusCode
+        })
+      })
+      .catch(error => {
+        callback(error.statusCode, {
           jobRunID: input.id,
           status: 'errored',
-          error: body,
-          errorMessage: body.error,
-          statusCode: response.statusCode
+          error,
+          statusCode: error.statusCode
         })
-      } else {
-        const result = body.quotes[market.toUpperCase()].price
-        body.result = result
-        callback(response.statusCode, {
-          jobRunID: input.id,
-          data: body,
-          result: result || '',
-          statusCode: response.statusCode
-        })
-      }
-    })
+      })
   })
 }
 

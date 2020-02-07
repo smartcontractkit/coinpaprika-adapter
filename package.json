@@ -1,13 +1,13 @@
 {
-  "name": "cl-coingecko",
-  "version": "1.0.0",
+  "name": "cl-coinpaprika",
+  "version": "0.1.0",
   "license": "MIT",
   "scripts": {
     "test": "./node_modules/.bin/_mocha --timeout 0"
   },
   "dependencies": {
-    "lodash": "^4.17.15",
-    "request": "^2.88.0"
+    "request": "^2.88.0",
+    "request-promise": "^4.2.5"
   },
   "devDependencies": {
     "body-parser": "^1.19.0",

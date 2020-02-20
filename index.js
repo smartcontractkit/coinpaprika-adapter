@@ -56,9 +56,10 @@ const convertFromTicker = (ticker, callback) => {
 }
 
 const createRequest = (input, callback) => {
-  convertFromTicker(input.data.coin, (coin) => {
+  const symbol = input.data.from || input.data.coin
+  convertFromTicker(symbol, (coin) => {
     const url = `https://api.coinpaprika.com/v1/tickers/${coin}`
-    const market = input.data.market || 'USD'
+    const market = input.data.to || input.data.market || 'USD'
 
     const queryObj = {
       quotes: market.toUpperCase()

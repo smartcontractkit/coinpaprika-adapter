@@ -37,7 +37,10 @@ const requestRetry = (options, retries) => {
 }
 
 
-const convertFromTicker = (ticker, callback) => {
+const convertFromTicker = (ticker, coinid, callback) => {
+  if (coinid.length !== 0)
+    return callback(coinid.toLowerCase())
+
   requestRetry({
     url: 'https://api.coinpaprika.com/v1/coins',
     json: true,
@@ -45,7 +48,8 @@ const convertFromTicker = (ticker, callback) => {
     resolveWithFullResponse: true
   }, retries)
     .then(response => {
-      let coin = response.body.find(x => x.symbol.toLowerCase() === ticker.toLowerCase())
+      let coin = response.body.sort((a, b) => (a.rank > b.rank) ? 1 : -1)
+                              .find(x => x.symbol.toLowerCase() === ticker.toLowerCase())
       if (typeof coin === 'undefined')
         return callback('undefined')
       return callback(coin.id.toLowerCase())
@@ -57,7 +61,7 @@ const convertFromTicker = (ticker, callback) => {
 
 const createRequest = (input, callback) => {
   const symbol = input.data.from || input.data.coin
-  convertFromTicker(symbol, (coin) => {
+  convertFromTicker(symbol, input.data.coinid || '', (coin) => {
     const url = `https://api.coinpaprika.com/v1/tickers/${coin}`
     const market = input.data.to || input.data.market || 'USD'
 

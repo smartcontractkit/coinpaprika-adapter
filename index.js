@@ -13,7 +13,7 @@ const convertFromTicker = (ticker, coinid, callback) => {
     url: 'https://api.coinpaprika.com/v1/coins'
   }).then(response => {
     const coin = response.body.sort((a, b) => (a.rank > b.rank) ? 1 : -1)
-      .find(x => x.symbol.toLowerCase() === ticker.toLowerCase())
+      .find(x => x.symbol.toLowerCase() === ticker.toLowerCase() && x.rank !== 0)
     if (typeof coin === 'undefined') {
       return callback('Could not find coin', null)
     }

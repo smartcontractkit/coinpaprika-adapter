@@ -1,99 +1,55 @@
-const rp = require('request-promise')
-const retries = process.env.RETRIES || 3
-const delay = process.env.RETRY_DELAY || 1000
-const timeout = process.env.TIMEOUT || 1000
+const { Requester, Validator } = require('external-adapter')
 
-const requestRetry = (options, retries) => {
-  return new Promise((resolve, reject) => {
-    const retry = (options, n) => {
-      return rp(options)
-        .then(response => {
-          if (response.body.error) {
-            if (n === 1) {
-              reject(response)
-            } else {
-              setTimeout(() => {
-                retries--
-                retry(options, retries)
-              }, delay)
-            }
-          } else {
-            return resolve(response)
-          }
-        })
-        .catch(error => {
-          if (n === 1) {
-            reject(error)
-          } else {
-            setTimeout(() => {
-              retries--
-              retry(options, retries)
-            }, delay)
-          }
-        })
+const customParams = {
+  base: ['base', 'from', 'coin'],
+  quote: ['quote', 'to', 'market'],
+  coinid: false
+}
+
+const convertFromTicker = (ticker, coinid, callback) => {
+  if (typeof coinId !== 'undefined') return callback(coinid.toLowerCase())
+
+  Requester.requestRetry({
+    url: 'https://api.coinpaprika.com/v1/coins'
+  }).then(response => {
+    const coin = response.body.sort((a, b) => (a.rank > b.rank) ? 1 : -1)
+      .find(x => x.symbol.toLowerCase() === ticker.toLowerCase())
+    if (typeof coin === 'undefined') {
+      return callback('Could not find coin', null)
     }
-    return retry(options, retries)
+    return callback(null, coin.id.toLowerCase())
+  }).catch(error => {
+    return callback(error, null)
   })
 }
 
-
-const convertFromTicker = (ticker, coinid, callback) => {
-  if (coinid.length !== 0)
-    return callback(coinid.toLowerCase())
-
-  requestRetry({
-    url: 'https://api.coinpaprika.com/v1/coins',
-    json: true,
-    timeout,
-    resolveWithFullResponse: true
-  }, retries)
-    .then(response => {
-      let coin = response.body.sort((a, b) => (a.rank > b.rank) ? 1 : -1)
-                              .find(x => x.symbol.toLowerCase() === ticker.toLowerCase())
-      if (typeof coin === 'undefined')
-        return callback('undefined')
-      return callback(coin.id.toLowerCase())
-    })
-    .catch(error => {
-      return callback('')
-    })
-}
-
 const createRequest = (input, callback) => {
-  const symbol = input.data.from || input.data.coin
-  convertFromTicker(symbol, input.data.coinid || '', (coin) => {
+  const validator = new Validator(input, customParams, callback)
+  const jobRunID = validator.validated.id
+  const symbol = validator.validated.data.base
+  convertFromTicker(symbol, validator.validated.data.coinid, (error, coin) => {
+    if (error !== null) {
+      return callback(500, Requester.errored(jobRunID, error))
+    }
     const url = `https://api.coinpaprika.com/v1/tickers/${coin}`
-    const market = input.data.to || input.data.market || 'USD'
+    const market = validator.validated.data.quote
 
-    const queryObj = {
+    const qs = {
       quotes: market.toUpperCase()
     }
 
     const options = {
-      url: url,
-      qs: queryObj,
-      json: true,
-      timeout,
-      resolveWithFullResponse: true
+      url,
+      qs
     }
-    requestRetry(options, retries)
+
+    Requester.requestRetry(options)
       .then(response => {
-        const result = response.body.quotes[market.toUpperCase()].price
-        response.body.result = result
-        callback(response.statusCode, {
-          jobRunID: input.id,
-          data: response.body,
-          result,
-          statusCode: response.statusCode
-        })
+        response.body.result = Requester.validateResult(response.body, ['quotes', market.toUpperCase(), 'price'])
+        callback(response.statusCode, Requester.success(jobRunID, response))
       })
       .catch(error => {
-        callback(error.statusCode, {
-          jobRunID: input.id,
-          status: 'errored',
-          error,
-          statusCode: error.statusCode
-        })
+        callback(500, Requester.errored(jobRunID, error))
       })
   })
 }

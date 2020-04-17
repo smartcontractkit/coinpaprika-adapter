@@ -5,12 +5,12 @@ External adapter for use on Google Cloud Platform or AWS Lambda. Zip and upload,
 ## Input Params
 
 - `coinid`: The CoinPaprika id of the coin to query (required if not using `from`)
-- `from` or `coin`: The ticker of the coin to query (required if not using `coinid`)
-- `to` or `market`: The currency to convert the coin to (required)
+- `base`, `from`, or `coin`: The ticker of the coin to query (required if not using `coinid`)
+- `quote`, `to`, or `market`: The currency to convert the coin to (required)
 
 ## Output Format
 
-```
+```json
 {
  "jobRunID": "278c97ffadb54a5bbb93cfec5f7b5503",
  "data": {
@@ -51,7 +51,7 @@ External adapter for use on Google Cloud Platform or AWS Lambda. Zip and upload,
 ## Install
 
 ```bash
-yarn install
+yarn
 ```
 
 ## Test
